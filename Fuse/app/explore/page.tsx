@@ -4,53 +4,68 @@ import { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, ShoppingCart } from "lucide-react";
+import { Search, ShoppingCart, Trash2 } from "lucide-react";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
-// Mock data for items
-const items = [
+// Types
+type Item = {
+  id: number;
+  name: string;
+  price: number;
+  image: string;
+  category: string;
+};
+
+type CartItem = Item & {
+  quantity: number;
+};
+
+const exchangeRate = 83; // 1 USD = 83 INR
+
+const items: Item[] = [
   {
     id: 1,
     name: "Folding Chair",
-    price: 25.99,
-    image: "/images/chair.jpg",
+    price: .09,
+    image: "folding chair.jpg",
     category: "Furniture",
   },
   {
     id: 2,
     name: "Decorative Lanterns",
-    price: 15.99,
-    image: "/images/lanterns.jpg",
+    price: .9,
+    image: "decoartive lantern.jpg",
     category: "Decor",
   },
   {
     id: 3,
     name: "Event Tent",
-    price: 199.99,
-    image: "/images/tent.jpg",
+    price: 25,
+    image: "tent.jpg",
     category: "Outdoor",
   },
   {
     id: 4,
     name: "Table Cloth",
-    price: 12.99,
-    image: "/images/table-cloth.jpg",
+    price: .010,
+    image: "table cloth.jpg",
     category: "Decor",
   },
   {
     id: 5,
     name: "String Lights",
-    price: 29.99,
-    image: "/images/lights.jpg",
+    price: .99,
+    image: "string lights.jpg",
     category: "Decor",
   },
   {
     id: 6,
     name: "Portable Speaker",
-    price: 89.99,
-    image: "/images/speaker.jpg",
+    price: .7,
+    image: "portable speaker.jpg",
     category: "Electronics",
   },
 ];
@@ -59,6 +74,8 @@ export default function ExplorePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 200]);
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [isCartOpen, setIsCartOpen] = useState(false);
 
   // Filter items based on search, price range, and category
   const filteredItems = items.filter((item) => {
@@ -68,6 +85,45 @@ export default function ExplorePage() {
 
     return matchesSearch && matchesPrice && matchesCategory;
   });
+
+  // Add item to cart
+  const addToCart = (item: Item) => {
+    setCart(prevCart => {
+      // Check if item already exists in cart
+      const existingItemIndex = prevCart.findIndex(cartItem => cartItem.id === item.id);
+      
+      if (existingItemIndex > -1) {
+        // If item exists, increase quantity
+        const updatedCart = [...prevCart];
+        updatedCart[existingItemIndex].quantity += 1;
+        return updatedCart;
+      } else {
+        // If item doesn't exist, add with quantity 1
+        return [...prevCart, { ...item, quantity: 1 }];
+      }
+    });
+  };
+
+  // Remove item from cart
+  const removeFromCart = (itemId: number) => {
+    setCart(prevCart => prevCart.filter(item => item.id !== itemId));
+  };
+
+  // Update item quantity
+  const updateQuantity = (itemId: number, newQuantity: number) => {
+    setCart(prevCart => 
+      newQuantity > 0
+        ? prevCart.map(item => 
+            item.id === itemId ? { ...item, quantity: newQuantity } : item
+          )
+        : prevCart.filter(item => item.id !== itemId)
+    );
+  };
+
+  // Calculate total cart value
+  const cartTotal = cart.reduce((total, item) => 
+    total + (item.price * item.quantity), 0
+  );
 
   return (
     <div className="container mx-auto p-4">
@@ -85,9 +141,9 @@ export default function ExplorePage() {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <Button variant="outline">
+          <Button variant="outline" onClick={() => setIsCartOpen(true)}>
             <ShoppingCart className="mr-2 h-4 w-4" />
-            View Cart
+            Cart ({cart.length})
           </Button>
         </div>
       </div>
@@ -103,8 +159,8 @@ export default function ExplorePage() {
             onValueChange={(value) => setPriceRange([value[0], value[1]])}
           />
           <div className="flex justify-between text-sm text-muted-foreground">
-            <span>${priceRange[0]}</span>
-            <span>${priceRange[1]}</span>
+            <span>₹{(priceRange[0] * exchangeRate).toFixed(2)}</span>
+            <span>₹{(priceRange[1] * exchangeRate).toFixed(2)}</span>
           </div>
         </div>
         <div className="flex flex-col space-y-2">
@@ -139,12 +195,88 @@ export default function ExplorePage() {
               <p className="text-muted-foreground">{item.category}</p>
             </CardContent>
             <CardFooter className="flex justify-between items-center p-4">
-              <p className="text-lg font-bold">${item.price.toFixed(2)}</p>
-              <Button size="sm">Add to Cart</Button>
+              <p className="text-lg font-bold">₹{(item.price * exchangeRate).toFixed(2)}</p>
+              <Button size="sm" onClick={() => addToCart(item)}>Add to Cart</Button>
             </CardFooter>
           </Card>
         ))}
       </div>
+
+      {/* Cart Dialog */}
+      <Dialog open={isCartOpen} onOpenChange={setIsCartOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Your Cart</DialogTitle>
+            <DialogDescription>
+              Review and manage your selected items
+            </DialogDescription>
+          </DialogHeader>
+          
+          {cart.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">Your cart is empty</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {cart.map((cartItem) => (
+                <div 
+                  key={cartItem.id} 
+                  className="flex items-center justify-between border-b pb-2"
+                >
+                  <div className="flex items-center space-x-4">
+                    <img 
+                      src={cartItem.image} 
+                      alt={cartItem.name} 
+                      className="w-16 h-16 object-cover rounded"
+                    />
+                    <div>
+                      <p className="font-medium">{cartItem.name}</p>
+                      <p className="text-muted-foreground">
+                        ₹{(cartItem.price * exchangeRate).toFixed(2)} each
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => updateQuantity(cartItem.id, cartItem.quantity - 1)}
+                    >
+                      -
+                    </Button>
+                    <span>{cartItem.quantity}</span>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => updateQuantity(cartItem.id, cartItem.quantity + 1)}
+                    >
+                      +
+                    </Button>
+                    <Button 
+                      variant="destructive" 
+                      size="sm" 
+                      onClick={() => removeFromCart(cartItem.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+              
+              <div className="flex justify-between items-center pt-4">
+                <p className="text-xl font-bold">Total</p>
+                <p className="text-xl font-bold">
+                  ₹{(cartTotal * exchangeRate).toFixed(2)}
+                </p>
+              </div>
+              
+              <Button className="w-full" size="lg">
+                Proceed to Checkout
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
